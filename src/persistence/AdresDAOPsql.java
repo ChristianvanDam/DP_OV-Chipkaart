@@ -9,19 +9,20 @@ import java.util.List;
 
 public class AdresDAOPsql implements AdresDAO{
     private final Connection connection;
+    private ReizigerDAO rdao;
 
     public AdresDAOPsql(Connection connection) {
         this.connection = connection;
     }
 
+    public void setRdao(ReizigerDAO rdao) {
+        this.rdao = rdao;
+    }
+
     private Adres createAdres(ResultSet rs) throws SQLException {
-        Adres adres = new Adres();
-        adres.setId(rs.getInt(1));
-        adres.setPostcode(rs.getString(2));
-        adres.setHuisnummer(rs.getString(3));
-        adres.setStraat(rs.getString(4));
-        adres.setWoonplaats(rs.getString(5));
-        adres.setReiziger_id(rs.getInt(6));
+        Adres adres = new Adres(rs.getInt(1), rs.getString(2),
+                rs.getString(3), rs.getString(4), rs.getString(5),
+                null);
         return adres;
     }
 
@@ -60,7 +61,7 @@ public class AdresDAOPsql implements AdresDAO{
             pst.setString(3, adres.getHuisnummer());
             pst.setString(4, adres.getStraat());
             pst.setString(5, adres.getWoonplaats());
-            pst.setInt(6, adres.getReiziger_id());
+            pst.setInt(6, adres.getReiziger_id().getId());
 
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -85,7 +86,7 @@ public class AdresDAOPsql implements AdresDAO{
             pst.setString(2, adres.getHuisnummer());
             pst.setString(3, adres.getStraat());
             pst.setString(4, adres.getWoonplaats());
-            pst.setInt(5, adres.getReiziger_id());
+            pst.setInt(5, adres.getReiziger_id().getId());
             pst.setInt(6, adres.getId());
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -129,7 +130,9 @@ public class AdresDAOPsql implements AdresDAO{
             pst.setInt(1, id);
             rs = pst.executeQuery();
             if (rs.next()) {
-                return createAdres(rs);
+                Adres a = createAdres(rs);
+                a.setReiziger_id(rdao.findById(rs.getInt(6)));
+                return a;
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -147,10 +150,9 @@ public class AdresDAOPsql implements AdresDAO{
         ResultSet rs = null;
         try {
             pst = connection.prepareStatement("""
-            SELECT a.adres_id, a.postcode, a.huisnummer, a.straat, a.woonplaats, a.reiziger_id FROM ovchip.public.reiziger
-            INNER JOIN ovchip.public.adres a
-            on reiziger.reiziger_id = a.reiziger_id
-            WHERE a.reiziger_id=?
+        SELECT ovchip.public.adres.adres_id, postcode, huisnummer, straat, woonplaats, reiziger_id
+        FROM ovchip.public.adres
+        WHERE reiziger_id = ?
 """);
             pst.setInt(1, reiziger.getId());
             rs = pst.executeQuery();

@@ -1,5 +1,7 @@
 package persistence;
 
+import domein.Adres;
+import domein.OVChipkaart;
 import domein.Reiziger;
 
 import java.sql.*;
@@ -8,22 +10,37 @@ import java.util.List;
 
 public class ReizigerDAOPsql implements ReizigerDAO{
     private final Connection connection;
-    private final AdresDAO adao;
+    private AdresDAO adao;
+    private OVChipkaartDAO ovdao;
 
     public ReizigerDAOPsql(Connection connection) {
         this.connection = connection;
-        this.adao = new AdresDAOPsql(connection);
+    }
+
+    public void setAdao(AdresDAO adao) {
+        this.adao = adao;
+    }
+
+    public void setOvdao(OVChipkaartDAO ovdao) {
+        this.ovdao = ovdao;
     }
 
     private Reiziger createReiziger(ResultSet rs) throws SQLException {
-        Reiziger reiziger = new Reiziger();
-        reiziger.setId(rs.getInt(1));
-        reiziger.setVoorletters(rs.getString(2));
-        reiziger.setTussenvoegsel(rs.getString(3));
-        reiziger.setAchternaam(rs.getString(4));
-        reiziger.setGeboortedatum(rs.getDate(5));
+        Reiziger reiziger = new Reiziger(rs.getInt(1), rs.getString(2), rs.getString(3),
+                rs.getString(4), rs.getDate(5));
         reiziger.setAdres(adao.findByReiziger(reiziger));
+        if (reiziger.getAdres() != null) reiziger.getAdres().setReiziger_id(reiziger);
+        reiziger.setOVChipkaarten(ovdao.findByReiziger(reiziger));
         return reiziger;
+    }
+
+    private boolean containsId(List<OVChipkaart> kaarten, OVChipkaart kaart) {
+        for (OVChipkaart ovChipkaart : kaarten) {
+            if (ovChipkaart.getKaart_nummer() == kaart.getKaart_nummer()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void closeStatement(Statement statement) {
@@ -62,17 +79,29 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             pst.setString(4, reiziger.getAchternaam());
             pst.setDate(5, reiziger.getGeboortedatum());
 
-            if (reiziger.getAdres() != null) {
-                return pst.executeUpdate() > 0 && adao.save(reiziger.getAdres());
+            boolean adres = true;
+            boolean reizigerSave = pst.executeUpdate() > 0;
+
+            for (OVChipkaart kaart : reiziger.getOvChipkaarten()) {
+                if (!ovdao.save(kaart)) return false;
             }
-            return pst.executeUpdate() > 0;
+
+            Adres adresReiziger = reiziger.getAdres();
+            if (adresReiziger != null) {
+                adres = adao.save(adresReiziger);
+            }
+
+            return reizigerSave && adres;
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
-            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
         } finally {
             closeStatement(pst);
         }
+        return false;
     }
 
     @Override
@@ -90,20 +119,48 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             pst.setDate(4, reiziger.getGeboortedatum());
             pst.setInt(5, reiziger.getId());
 
-            if (reiziger.getAdres() == null && adao.findByReiziger(reiziger) != null) {
-                return adao.delete(adao.findByReiziger(reiziger)) && pst.executeUpdate() > 0;
+            boolean reizigerUpdate = pst.executeUpdate() > 0;
+
+            Adres adresReiziger = reiziger.getAdres();
+            Adres adresDB = adao.findByReiziger(reiziger);
+
+            if (adresReiziger == null && adresDB != null) {
+                adao.delete(adresDB);
             }
 
-            if (reiziger.getAdres() != null && adao.findByReiziger(reiziger) == null) {
-                return adao.save(reiziger.getAdres()) && pst.executeUpdate() > 0;
-            }
+            if (adresReiziger != null) {
+                if (adresDB == null) {
+                    adao.save(adresReiziger);
+                }
 
-            if (reiziger.getAdres() != adao.findByReiziger(reiziger)) {
-                return adao.update(reiziger.getAdres()) && pst.executeUpdate() > 0;
+                if (adresReiziger != adresDB) {
+                    adao.update(adresReiziger);
+                }
             }
-            return pst.executeUpdate() > 0;
+            List<OVChipkaart> kaartenDB = ovdao.findByReiziger(reiziger);
+            List<OVChipkaart> kaartenReiziger = reiziger.getOvChipkaarten();
+
+            kaartenReiziger.forEach(kaartReiziger -> {
+                if (!containsId(kaartenDB, kaartReiziger)) {
+                    ovdao.save(kaartReiziger);
+                }
+                else if (!kaartenDB.contains(kaartReiziger)) {
+                    ovdao.update(kaartReiziger);
+                }
+            });
+
+            kaartenDB.forEach(kaartDB -> {
+                if (!containsId(kaartenReiziger, kaartDB)) {
+                    ovdao.delete(kaartDB);
+                }
+            });
+
+            return reizigerUpdate;
 
         } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
@@ -121,11 +178,19 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             WHERE reiziger_id=?
             """);
             pst.setInt(1, reiziger.getId());
-            if (reiziger.getAdres() != null) {
-                return adao.delete(reiziger.getAdres()) && pst.executeUpdate() > 0;
+            boolean adres = true;
+            for (OVChipkaart kaart : reiziger.getOvChipkaarten()) {
+                if (!ovdao.delete(kaart)) return false;
             }
-            return pst.executeUpdate() > 0;
+            Adres adresReiziger = reiziger.getAdres();
+            if (adresReiziger != null) {
+                adres = adao.delete(adresReiziger);
+            }
+            return pst.executeUpdate() > 0 && adres;
         } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
@@ -152,6 +217,9 @@ public class ReizigerDAOPsql implements ReizigerDAO{
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
         } finally {
             closeResultSet(rs);
             closeStatement(pst);
@@ -165,8 +233,8 @@ public class ReizigerDAOPsql implements ReizigerDAO{
         ResultSet rs = null;
         try {
             pst = connection.prepareStatement("""
-            SELECT reiziger_id, voorletters, tussenvoegsel, achternaam, geboortedatum 
-            FROM ovchip.public.reiziger 
+            SELECT reiziger_id, voorletters, tussenvoegsel, achternaam, geboortedatum
+            FROM ovchip.public.reiziger
             WHERE geboortedatum = ?
             """);
             pst.setDate(1, Date.valueOf(datum));
@@ -178,6 +246,9 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             return reizigers;
 
         } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
@@ -194,7 +265,7 @@ public class ReizigerDAOPsql implements ReizigerDAO{
         try {
             st = connection.createStatement();
             rs = st.executeQuery("""
-            SELECT reiziger_id, voorletters, tussenvoegsel, achternaam, geboortedatum 
+            SELECT reiziger_id, voorletters, tussenvoegsel, achternaam, geboortedatum
             FROM ovchip.public.reiziger
             """);
             List<Reiziger> reizigers = new ArrayList<>();
@@ -203,6 +274,9 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             }
             return reizigers;
         } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {

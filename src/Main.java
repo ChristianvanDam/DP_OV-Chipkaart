@@ -1,9 +1,7 @@
 import domein.Adres;
+import domein.OVChipkaart;
 import domein.Reiziger;
-import persistence.AdresDAO;
-import persistence.AdresDAOPsql;
-import persistence.ReizigerDAO;
-import persistence.ReizigerDAOPsql;
+import persistence.*;
 
 import java.sql.*;
 import java.util.List;
@@ -17,9 +15,16 @@ public class Main {
 
         ReizigerDAOPsql rdao = new ReizigerDAOPsql(conn);
         AdresDAOPsql adao = new AdresDAOPsql(conn);
+        OVChipkaartDAOPsql ovdao = new OVChipkaartDAOPsql(conn);
+        ovdao.setRdao(rdao);
+        rdao.setAdao(adao);
+        rdao.setOvdao(ovdao);
+        adao.setRdao(rdao);
+
         testReizigerDAO(rdao);
         testAdresDAO(adao, rdao);
         testEenOpEen(rdao, adao);
+        testOVChipkaartDAO(ovdao, rdao);
 
         closeConnection();
     }
@@ -84,13 +89,13 @@ public class Main {
         }
 
     }
-    private static void testAdresDAO(AdresDAO adao, ReizigerDAO rdao) throws SQLException{
+    private static void testAdresDAO(AdresDAO adao, ReizigerDAO rdao) {
         System.out.println("\nTests AdresDAO\n");
 
         System.out.println("[Test] Save");
         System.out.println("Reiziger aanmaken daarna adres aanmaken");
         Reiziger reiziger = new Reiziger(6, "R", "van", "Dam", Date.valueOf("2004-08-01"));
-        Adres adres1 = new Adres(6, "2317HJ", "17", "Cameliadal", "Leiden",6);
+        Adres adres1 = new Adres(6, "2317HJ", "17", "Cameliadal", "Leiden",reiziger);
         rdao.save(reiziger);
         adao.save(adres1);
         System.out.println(adao.findById(adres1.getId()));
@@ -123,11 +128,11 @@ public class Main {
         System.out.println("Aantal adressen na delete: " + adao.findAll().size());
 
     }
-    private static void testEenOpEen(ReizigerDAO rdao, AdresDAO adao) throws SQLException {
+    private static void testEenOpEen(ReizigerDAO rdao, AdresDAO adao) {
         System.out.println("\nTests 1-1 relatie\n");
         System.out.println("[Test] Save");
         Reiziger reiziger = new Reiziger(6, "R", null, "Been", Date.valueOf("2002-05-23"));
-        Adres a1 = new Adres(6, "3452NA", "400", "Het Horseler", "Ede", 6);
+        Adres a1 = new Adres(6, "3452NA", "400", "Het Horseler", "Ede", reiziger);
         reiziger.setAdres(a1);
         rdao.save(reiziger);
         if (!(rdao.findAll().size() == 6 && adao.findAll().size() == 6)) throw new Error("test gefaald");
@@ -142,7 +147,7 @@ public class Main {
         reiziger.setAdres(null);
         rdao.update(reiziger);
         System.out.println("na de update: " + rdao.findById(reiziger.getId()));
-        reiziger.setAdres(new Adres(6, "3563AT", "12", "Jaarbeursplein", "Utrecht", 6));
+        reiziger.setAdres(new Adres(6, "3563AT", "12", "Jaarbeursplein", "Utrecht", reiziger));
         rdao.update(reiziger);
         System.out.println("nieuw adres erin zetten:");
         System.out.println(rdao.findById(reiziger.getId()));
@@ -157,5 +162,79 @@ public class Main {
         if (rdao.findById(6) == null) {
             System.out.println("Aantal reizigers na delete: " + rdao.findAll().size());
         }
+    }
+
+    private static void testOVChipkaartDAO(OVChipkaartDAOPsql ovdao, ReizigerDAOPsql rdao) {
+        System.out.println("\n[Test] findAll");
+        ovdao.findAll().forEach(ovchip -> System.out.println(ovchip.toString()));
+
+        System.out.println("\n[Test] Save");
+        System.out.println("aantal chipkaarten voor save: " + ovdao.findAll().size());
+        OVChipkaart chip = new OVChipkaart(24657, Date.valueOf("2022-09-30"), 2,
+                30.00, 1, rdao.findById(1));
+        ovdao.save(chip);
+        System.out.println("aantal chipkaarten na save: " + ovdao.findAll().size());
+
+        System.out.println("\n[Test] Update");
+        System.out.println("voor de update: " + ovdao.findById(chip.getKaart_nummer()));
+        chip.setSaldo(20.00);
+        chip.setGeldig_tot(Date.valueOf("2022-12-31"));
+        ovdao.update(chip);
+        System.out.println("na de update: " + ovdao.findById(chip.getKaart_nummer()));
+
+        System.out.println("\n[Test] Delete");
+        System.out.println("aantal chipkaarten voor delete: " + ovdao.findAll().size());
+        ovdao.delete(chip);
+        if (ovdao.findAll().contains(chip)) throw new Error("Delete verwijderde het object niet");
+        System.out.println("aantal chipkaarten na delete: " + ovdao.findAll().size());
+
+        System.out.println("\n[Test] findByReiziger");
+        ovdao.findByReiziger(rdao.findById(2)).forEach(System.out::println);
+
+        System.out.println("\n[Test] findById");
+        OVChipkaart kaart = ovdao.findById(35283);
+        System.out.println(kaart);
+        System.out.println(kaart.getReiziger());
+        kaart.getReiziger().getOvChipkaarten().forEach(System.out::println);
+
+        System.out.println("\n[Test] CRUD combinatie met Reiziger");
+
+        System.out.println("\n[Test] Save");
+        Reiziger reiziger = new Reiziger(6, "R", "van", "Dam", Date.valueOf("2004-08-01"));
+        Adres adres1 = new Adres(6, "2317HJ", "17", "Cameliadal", "Leiden", reiziger);
+        OVChipkaart kaart1 = new OVChipkaart(75389, Date.valueOf("2023-01-31"), 2, 10.00, 6);
+        OVChipkaart kaart2 = new OVChipkaart(75390, Date.valueOf("2026-04-30"), 1, 20.00, 6);
+        reiziger.setAdres(adres1);
+        reiziger.addOvChipkaart(kaart1);
+        reiziger.addOvChipkaart(kaart2);
+        System.out.println("Aantal reizigers voor save: " + rdao.findAll().size());
+        rdao.save(reiziger);
+        System.out.println("Aantal reizigers na save: " + rdao.findAll().size());
+        System.out.println(reiziger);
+
+        System.out.println("\n[Test] Update");
+        System.out.println("Voor de update: " + reiziger);
+        reiziger.setVoorletters("C");
+        reiziger.setAchternaam("Dijk");
+        reiziger.setGeboortedatum(Date.valueOf("1990-02-23"));
+        adres1.setHuisnummer("23");
+        adres1.setStraat("Seringenlaan");
+        adres1.setWoonplaats("Woerden");
+        adres1.setPostcode("3442HK");
+        kaart1.setKlasse(1);
+        kaart1.setSaldo(1.00);
+        kaart1.setGeldig_tot(Date.valueOf("2027-09-30"));
+        kaart2.setKlasse(2);
+        kaart2.setSaldo(100.00);
+        kaart2.setGeldig_tot(Date.valueOf("2026-08-31"));
+        rdao.update(reiziger);
+        System.out.println("Na de update: " + rdao.findById(reiziger.getId()));
+
+
+        System.out.println("\n[Test] Delete");
+        System.out.println("aantal reizigers voor delete: " + rdao.findAll().size());
+        rdao.delete(reiziger);
+        System.out.println("aantal reizigers na delete: " + rdao.findAll().size());
+        if (rdao.findAll().contains(reiziger)) throw new Error("Reiziger niet juist verwijderd");
     }
 }

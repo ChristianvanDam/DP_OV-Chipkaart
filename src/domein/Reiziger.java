@@ -1,8 +1,11 @@
 package domein;
 
 import java.sql.Date;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Reiziger {
+
     private int id;
     private String voorletters;
     private String tussenvoegsel;
@@ -10,6 +13,8 @@ public class Reiziger {
     private Date geboortedatum;
 
     private Adres adres;
+
+    private List<OVChipkaart> OVChipkaarten;
 
     public Reiziger() {}
 
@@ -19,6 +24,7 @@ public class Reiziger {
         this.tussenvoegsel = tussenvoegsel;
         this.achternaam = achternaam;
         this.geboortedatum = geboortedatum;
+        this.OVChipkaarten = new ArrayList<>();
     }
 
     public int getId() {
@@ -74,14 +80,36 @@ public class Reiziger {
         this.adres = adres;
     }
 
+    public List<OVChipkaart> getOvChipkaarten() {
+        return this.OVChipkaarten;
+    }
+
+    public void setOVChipkaarten(List<OVChipkaart> OVChipkaarten) {
+        this.OVChipkaarten = OVChipkaarten;
+        OVChipkaarten.forEach(chipkaart -> {
+            if (chipkaart.getReiziger() != this) chipkaart.setReiziger(this);
+        });
+    }
+
+    public void addOvChipkaart(OVChipkaart OVChipkaart) {
+        this.OVChipkaarten.add(OVChipkaart);
+        if (OVChipkaart.getReiziger() != this) OVChipkaart.setReiziger(this);
+    }
+
     public boolean equals(Reiziger reiziger) {
         return reiziger.getId() == this.id;
     }
 
+
     @Override
     public String toString() {
         String adrs = "";
-        if (adres != null) adrs += ", " + adres;
-        return "Reiziger {#" + id + " " + getNaam() + " (" + geboortedatum.toString() + ")" + adrs + "}";
+        if (this.adres != null) adrs += ", " + this.adres;
+        StringBuilder kaarten = new StringBuilder();
+        if (OVChipkaarten.size() > 0) {
+            OVChipkaarten.forEach(kaart -> kaarten.append(kaart.toString()).append(", "));
+            kaarten.delete(kaarten.length() - 2, kaarten.length());
+        }
+        return String.format("Reiziger {#%s %s (%s)%s, [%s]}", id, getNaam(), geboortedatum.toString(), adrs, kaarten);
     }
 }
