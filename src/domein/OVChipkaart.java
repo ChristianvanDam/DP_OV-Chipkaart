@@ -1,44 +1,49 @@
 package domein;
 
 import java.sql.Date;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public class OVChipkaart {
-    private int kaart_nummer;
-    private Date geldig_tot;
+    private int kaartNummer;
+    private Date geldigTot;
     private int klasse;
     private double saldo;
-    private int reiziger_id;
+    private int reizigerId;
 
     private Reiziger reiziger;
 
-    public OVChipkaart(int kaart_nummer, Date geldig_tot, int klasse, double saldo, int reiziger_id) {
-        this.kaart_nummer = kaart_nummer;
-        this.geldig_tot = geldig_tot;
+    private List<Product> producten;
+
+    public OVChipkaart(int kaartNummer, Date geldigTot, int klasse, double saldo, int reizigerId) {
+        this.kaartNummer = kaartNummer;
+        this.geldigTot = geldigTot;
         this.klasse = klasse;
         this.saldo = saldo;
-        this.reiziger_id = reiziger_id;
+        this.reizigerId = reizigerId;
+        this.producten = new ArrayList<>();
     }
 
-    public OVChipkaart(int kaart_nummer, Date geldig_tot, int klasse, double saldo, int reiziger_id, Reiziger reiziger) {
-        this(kaart_nummer, geldig_tot, klasse, saldo, reiziger_id);
+    public OVChipkaart(int kaartNummer, Date geldigTot, int klasse, double saldo, int reizigerId, Reiziger reiziger) {
+        this(kaartNummer, geldigTot, klasse, saldo, reizigerId);
         this.reiziger = reiziger;
     }
 
-    public int getKaart_nummer() {
-        return this.kaart_nummer;
+    public int getKaartNummer() {
+        return this.kaartNummer;
     }
 
-    public void setKaart_nummer(int kaart_nummer) {
-        this.kaart_nummer = kaart_nummer;
+    public void setKaartNummer(int kaartNummer) {
+        this.kaartNummer = kaartNummer;
     }
 
-    public Date getGeldig_tot() {
-        return this.geldig_tot;
+    public Date getGeldigTot() {
+        return this.geldigTot;
     }
 
-    public void setGeldig_tot(Date geldig_tot) {
-        this.geldig_tot = geldig_tot;
+    public void setGeldigTot(Date geldigTot) {
+        this.geldigTot = geldigTot;
     }
 
     public int getKlasse() {
@@ -57,12 +62,12 @@ public class OVChipkaart {
         this.saldo = saldo;
     }
 
-    public int getReiziger_id() {
-        return this.reiziger_id;
+    public int getReizigerId() {
+        return this.reizigerId;
     }
 
-    public void setReiziger_id(int reiziger_id) {
-        this.reiziger_id = reiziger_id;
+    public void setReizigerId(int reizigerId) {
+        this.reizigerId = reizigerId;
     }
 
     public Reiziger getReiziger() {
@@ -73,19 +78,53 @@ public class OVChipkaart {
         this.reiziger = reiziger;
     }
 
+    public void setProducten(List<Product> producten) {
+        this.producten = producten;
+        for (Product p : producten) {
+            p.addovChipkaart(this);
+        }
+    }
+
+    public List<Product> getProducten() {
+        return this.producten;
+    }
+
+    public void addProduct(Product product) {
+        if (!this.producten.contains(product)) {
+            this.producten.add(product);
+            product.addovChipkaart(this);
+        }
+    }
+
+    public void removeProduct(Product product) {
+        this.producten.remove(product);
+        product.removeOvchipkaart(this);
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OVChipkaart that = (OVChipkaart) o;
-        return kaart_nummer == that.kaart_nummer && klasse == that.klasse && Double.compare(that.saldo, saldo) == 0
-                && reiziger_id == that.reiziger_id && Objects.equals(geldig_tot, that.geldig_tot)
-                && Objects.equals(reiziger, that.reiziger);
+        if (o instanceof OVChipkaart) {
+            OVChipkaart ov = (OVChipkaart) o;
+            return this.kaartNummer == ov.getKaartNummer()
+                    && this.geldigTot.equals(ov.getGeldigTot())
+                    && this.klasse == ov.getKlasse()
+                    && this.saldo == ov.getSaldo()
+                    && this.reizigerId == ov.getReizigerId()
+                    && this.producten.equals(ov.getProducten());
+        }
+        return false;
     }
 
     @Override
     public String toString() {
-        return String.format("{%s %s %s %s}", this.kaart_nummer, this.geldig_tot,
-                this.klasse, this.saldo);
+        StringBuilder sb = new StringBuilder();
+        if (getProducten().size() > 0) {
+            for (Product p : getProducten()) {
+                sb.append(p.toString()).append(", ");
+            }
+            sb.delete(sb.length() - 2, sb.length() - 1);
+        }
+        return String.format("{%s %s %s %s, %s}", this.kaartNummer, this.geldigTot,
+                this.klasse, this.saldo, sb);
     }
 }

@@ -2,81 +2,78 @@ package persistence;
 
 import domein.OVChipkaart;
 import domein.Product;
-import domein.Reiziger;
+import org.w3c.dom.ls.LSOutput;
 
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-public class OVChipkaartDAOPsql implements OVChipkaartDAO {
+public class ProductDAOPsql implements ProductDAO {
     private Connection conn;
-    private ReizigerDAO rdao;
-    private ProductDAO pdao;
+    private OVChipkaartDAO ovdao;
 
-    public OVChipkaartDAOPsql(Connection connection) {
+    public  ProductDAOPsql(Connection connection) {
         this.conn = connection;
     }
 
-    public void setRdao(ReizigerDAO rdao) {
-        this.rdao = rdao;
+    public void setOvdao(OVChipkaartDAO ovdao) {
+        this.ovdao = ovdao;
     }
 
-    public void setPdao(ProductDAO pdao) {this.pdao = pdao;}
+    public Product createProduct(ResultSet rs) {
+        try {
+            Product product = new Product(rs.getInt(1), rs.getString(2),
+                    rs.getString(3), rs.getDouble(4));
+            return product;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        }
+        return null;
+    }
 
-    private boolean containsId(List<Product> producten, Product product) {
-        for (Product p : producten) {
-            if (p.getProductNummer() == product.getProductNummer()) return true;
+    public void closeStatement(Statement st) {
+        try {
+            st.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        }
+    }
+
+    public void closeResultSet(ResultSet rs) {
+        try {
+            rs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private boolean containsId(List<OVChipkaart> ovChipkaarten, OVChipkaart k) {
+        for (OVChipkaart o : ovChipkaarten) {
+            if (o.getKaartNummer() == k.getKaartNummer()) return true;
         }
         return false;
     }
 
-    private OVChipkaart createOVChipkaart(ResultSet rs) throws SQLException {
-        OVChipkaart ovChipkaart = new OVChipkaart(rs.getInt(1), rs.getDate(2),
-                rs.getInt(3), rs.getDouble(4), rs.getInt(5)
-                );
-        ovChipkaart.setProducten(pdao.findByOvchipkaart(ovChipkaart));
-        return ovChipkaart;
-    }
-
-    private void closeStatement(Statement statement) {
-        if (statement != null) {
-            try {
-                statement.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.out.println(e.getMessage());
-            }
-        }
-    }
-
-    private void closeResultSet(ResultSet resultSet) {
-        if (resultSet != null) {
-            try {
-                resultSet.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.out.println(e.getMessage());
-            }
-        }
-    }
-
     @Override
-    public boolean save(OVChipkaart ovChipkaart) {
+    public boolean save(Product product) {
         PreparedStatement pst = null;
         try {
             pst = conn.prepareStatement("""
-            INSERT INTO ovchip.public.ov_chipkaart(kaart_nummer, geldig_tot, klasse, saldo, reiziger_id)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO ovchip.public.product(product_nummer, naam, beschrijving, prijs)
+            VALUES (?, ?, ?, ?)
             """);
-            pst.setInt(1, ovChipkaart.getKaartNummer());
-            pst.setDate(2, ovChipkaart.getGeldigTot());
-            pst.setInt(3, ovChipkaart.getKlasse());
-            pst.setDouble(4, ovChipkaart.getSaldo());
-            pst.setInt(5, ovChipkaart.getReizigerId());
+            pst.setInt(1, product.getProductNummer());
+            pst.setString(2, product.getNaam());
+            pst.setString(3, product.getBeschrijving());
+            pst.setDouble(4, product.getPrijs());
 
-            for (Product p : ovChipkaart.getProducten()) {
-                if (!addKoppeltabel(ovChipkaart, p)) return false;
+            for (OVChipkaart o : product.getOvChipkaarten()) {
+                if (!addKoppeltabel(o, product)) return false;
             }
 
             return pst.executeUpdate() > 0;
@@ -87,46 +84,41 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
+            assert pst != null;
             closeStatement(pst);
         }
         return false;
     }
 
     @Override
-    public boolean update(OVChipkaart ovChipkaart) {
+    public boolean update(Product product) {
         PreparedStatement pst = null;
         try {
             pst = conn.prepareStatement("""
-            UPDATE ovchip.public.ov_chipkaart
-            SET geldig_tot=?, klasse=?, saldo=?, reiziger_id=?
-            WHERE kaart_nummer=?
+            UPDATE ovchip.public.product
+            SET naam=?, beschrijving=?, prijs=?
+            WHERE product_nummer=?
             """);
-            pst.setDate(1, ovChipkaart.getGeldigTot());
-            pst.setInt(2, ovChipkaart.getKlasse());
-            pst.setDouble(3, ovChipkaart.getSaldo());
-            pst.setInt(4, ovChipkaart.getReizigerId());
-            pst.setInt(5, ovChipkaart.getKaartNummer());
+            pst.setString(1, product.getNaam());
+            pst.setString(2, product.getBeschrijving());
+            pst.setDouble(3, product.getPrijs());
+            pst.setInt(4, product.getProductNummer());
 
-            List<Product> productenDB = findById(ovChipkaart.getKaartNummer()).getProducten();
-            List<Product> productenKaart = ovChipkaart.getProducten();
+            List<OVChipkaart> kaartenDB = findById(product.getProductNummer()).getOvChipkaarten();
+            List<OVChipkaart> kaartenProduct = product.getOvChipkaarten();
 
-            for (Product p : productenDB) {
-                if (!productenKaart.contains(p)) {
-                    if (!removeKoppeltabel(ovChipkaart, p)) {
-                        return false;
-                    }
+            for (OVChipkaart o : kaartenDB) {
+                if (!kaartenProduct.contains(o)) {
+                    if (!removeKoppeltabel(o, product)) return false;
                 }
             }
 
-            for (Product p : productenKaart) {
-                if (!containsId(productenDB, p)) {
-                    if (!addKoppeltabel(ovChipkaart, p)) {
-                        return false;
-                    }
+            for (OVChipkaart o : kaartenProduct) {
+                if (!containsId(kaartenDB, o)) {
+                    if (!addKoppeltabel(o, product)) return false;
                 }
             }
 
-
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -135,24 +127,24 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
+            assert pst != null;
             closeStatement(pst);
         }
         return false;
     }
 
     @Override
-    public boolean delete(OVChipkaart ovChipkaart) {
+    public boolean delete(Product product) {
         PreparedStatement pst = null;
         try {
+
             pst = conn.prepareStatement("""
-            DELETE FROM ovchip.public.ov_chipkaart
-            WHERE kaart_nummer=?
+            DELETE FROM ovchip.public.product
+            WHERE product_nummer=?
             """);
-            pst.setInt(1, ovChipkaart.getKaartNummer());
+            pst.setInt(1, product.getProductNummer());
 
-            if (!removeKoppeltabel(ovChipkaart)) return false;
-
-            return pst.executeUpdate() > 0;
+            return removeKoppeltabel(product) && pst.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
@@ -160,28 +152,32 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
+            assert pst != null;
             closeStatement(pst);
         }
         return false;
     }
 
     @Override
-    public OVChipkaart findById(int id) {
+    public Product findById(int id) {
+        List<OVChipkaart> kaarten = ovdao.findAll();
+        for (OVChipkaart kaart : kaarten) {
+            for (Product p : kaart.getProducten()) {
+                if (p.getProductNummer() == id) return p;
+            }
+        }
         PreparedStatement pst = null;
         ResultSet rs = null;
         try {
             pst = conn.prepareStatement("""
-            SELECT kaart_nummer, geldig_tot, klasse, saldo, reiziger_id
-            FROM ovchip.public.ov_chipkaart
-            WHERE kaart_nummer=?
+            SELECT product_nummer, naam, beschrijving, prijs
+            FROM ovchip.public.product
+            WHERE product_nummer=?
             """);
             pst.setInt(1, id);
-
             rs = pst.executeQuery();
             if (rs.next()) {
-                OVChipkaart kaart = createOVChipkaart(rs);
-                kaart.setReiziger(rdao.findById(kaart.getReizigerId()));
-                return kaart;
+                return createProduct(rs);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -196,24 +192,30 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
         return null;
     }
 
+
     @Override
-    public List<OVChipkaart> findByReiziger(Reiziger reiziger) {
-        List<OVChipkaart> ovChipkaarten = new ArrayList<>();
+    public List<Product> findAll() {
+        List<Product> producten = new ArrayList<>();
+        for (OVChipkaart o : ovdao.findAll()) {
+            for (Product p : o.getProducten()) {
+                if (!producten.contains(p)) producten.add(p);
+            }
+        }
         PreparedStatement pst = null;
         ResultSet rs = null;
         try {
             pst = conn.prepareStatement("""
-            SELECT kaart_nummer, geldig_tot, klasse, saldo, reiziger_id
-            FROM ovchip.public.ov_chipkaart
-            WHERE reiziger_id=?
+            SELECT product_nummer, naam, beschrijving, prijs
+            FROM ovchip.public.product
             """);
-            pst.setInt(1, reiziger.getId());
-
             rs = pst.executeQuery();
             while (rs.next()) {
-                ovChipkaarten.add(createOVChipkaart(rs));
+                Product p = createProduct(rs);
+                if (!producten.contains(p)) {
+                    producten.add(p);
+                }
             }
-            return ovChipkaarten;
+            return producten;
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
@@ -227,23 +229,27 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
         return null;
     }
 
+
+
     @Override
-    public List<OVChipkaart> findAll() {
-        List<OVChipkaart> ovChipkaarten = new ArrayList<>();
+    public List<Product> findByOvchipkaart(OVChipkaart ovChipkaart) {
+        List<Product> producten = new ArrayList<>();
         PreparedStatement pst = null;
         ResultSet rs = null;
         try {
             pst = conn.prepareStatement("""
-            SELECT kaart_nummer, geldig_tot, klasse, saldo, reiziger_id
-            FROM ovchip.public.ov_chipkaart
+            SELECT p.product_nummer, naam, beschrijving, prijs
+            FROM ovchip.public.product p
+            INNER JOIN ovchip.public.ov_chipkaart_product ocp on p.product_nummer = ocp.product_nummer
+            INNER JOIN ovchip.public.ov_chipkaart oc on oc.kaart_nummer = ocp.kaart_nummer
+            WHERE oc.kaart_nummer=?
             """);
+            pst.setInt(1, ovChipkaart.getKaartNummer());
             rs = pst.executeQuery();
             while (rs.next()) {
-                OVChipkaart kaart = createOVChipkaart(rs);
-                kaart.setReiziger(rdao.findById(kaart.getReizigerId()));
-                ovChipkaarten.add(kaart);
+                producten.add(createProduct(rs));
             }
-            return ovChipkaarten;
+            return producten;
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
@@ -257,6 +263,29 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
         return null;
     }
 
+    private boolean removeKoppeltabel(Product product) {
+        PreparedStatement pstKoppel = null;
+        try {
+            pstKoppel = conn.prepareStatement("""
+            DELETE FROM ovchip.public.ov_chipkaart_product
+            WHERE product_nummer=?
+            """);
+
+        pstKoppel.setInt(1, product.getProductNummer());
+
+        return pstKoppel.executeUpdate() >= 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println(e.getMessage());
+        } finally {
+            assert pstKoppel != null;
+            closeStatement(pstKoppel);
+        }
+        return false;
+    }
 
     private boolean removeKoppeltabel(OVChipkaart ovChipkaart, Product product) {
         PreparedStatement pstKoppel = null;
@@ -277,35 +306,13 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
+            assert pstKoppel != null;
             closeStatement(pstKoppel);
         }
         return false;
     }
 
-    public boolean removeKoppeltabel(OVChipkaart ovChipkaart) {
-        PreparedStatement pstKoppel = null;
-        try {
-            pstKoppel = conn.prepareStatement("""
-            DELETE FROM ovchip.public.ov_chipkaart_product
-            WHERE kaart_nummer=?
-            """);
-
-            pstKoppel.setInt(1, ovChipkaart.getKaartNummer());
-
-            return pstKoppel.executeUpdate() >= 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-            System.out.println(e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println(e.getMessage());
-        } finally {
-            closeStatement(pstKoppel);
-        }
-        return false;
-    }
-
-    public boolean addKoppeltabel(OVChipkaart ovChipkaart, Product product) {
+    private boolean addKoppeltabel(OVChipkaart ovChipkaart, Product product) {
         PreparedStatement pstKoppel = null;
         try {
             pstKoppel = conn.prepareStatement("""
@@ -321,10 +328,11 @@ public class OVChipkaartDAOPsql implements OVChipkaartDAO {
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
-        } catch (Exception e) {
+        }catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
         } finally {
+            assert pstKoppel != null;
             closeStatement(pstKoppel);
         }
         return false;

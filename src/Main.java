@@ -1,5 +1,6 @@
 import domein.Adres;
 import domein.OVChipkaart;
+import domein.Product;
 import domein.Reiziger;
 import persistence.*;
 
@@ -16,15 +17,19 @@ public class Main {
         ReizigerDAOPsql rdao = new ReizigerDAOPsql(conn);
         AdresDAOPsql adao = new AdresDAOPsql(conn);
         OVChipkaartDAOPsql ovdao = new OVChipkaartDAOPsql(conn);
+        ProductDAOPsql pdao = new ProductDAOPsql(conn);
         ovdao.setRdao(rdao);
         rdao.setAdao(adao);
         rdao.setOvdao(ovdao);
         adao.setRdao(rdao);
+        ovdao.setPdao(pdao);
+        pdao.setOvdao(ovdao);
 
         testReizigerDAO(rdao);
         testAdresDAO(adao, rdao);
         testEenOpEen(rdao, adao);
         testOVChipkaartDAO(ovdao, rdao);
+        testProductDAO(ovdao, pdao);
 
         closeConnection();
     }
@@ -119,6 +124,7 @@ public class Main {
         System.out.println("\n[Test] findAll()\n");
         for (Adres adres : adao.findAll()) {
             System.out.println(adres);
+            System.out.println(adres.getReizigerId());
         }
 
         System.out.println("\n[Test] Delete");
@@ -176,11 +182,11 @@ public class Main {
         System.out.println("aantal chipkaarten na save: " + ovdao.findAll().size());
 
         System.out.println("\n[Test] Update");
-        System.out.println("voor de update: " + ovdao.findById(chip.getKaart_nummer()));
+        System.out.println("voor de update: " + ovdao.findById(chip.getKaartNummer()));
         chip.setSaldo(20.00);
-        chip.setGeldig_tot(Date.valueOf("2022-12-31"));
+        chip.setGeldigTot(Date.valueOf("2022-12-31"));
         ovdao.update(chip);
-        System.out.println("na de update: " + ovdao.findById(chip.getKaart_nummer()));
+        System.out.println("na de update: " + ovdao.findById(chip.getKaartNummer()));
 
         System.out.println("\n[Test] Delete");
         System.out.println("aantal chipkaarten voor delete: " + ovdao.findAll().size());
@@ -223,10 +229,10 @@ public class Main {
         adres1.setPostcode("3442HK");
         kaart1.setKlasse(1);
         kaart1.setSaldo(1.00);
-        kaart1.setGeldig_tot(Date.valueOf("2027-09-30"));
+        kaart1.setGeldigTot(Date.valueOf("2027-09-30"));
         kaart2.setKlasse(2);
         kaart2.setSaldo(100.00);
-        kaart2.setGeldig_tot(Date.valueOf("2026-08-31"));
+        kaart2.setGeldigTot(Date.valueOf("2026-08-31"));
         rdao.update(reiziger);
         System.out.println("Na de update: " + rdao.findById(reiziger.getId()));
 
@@ -236,5 +242,43 @@ public class Main {
         rdao.delete(reiziger);
         System.out.println("aantal reizigers na delete: " + rdao.findAll().size());
         if (rdao.findAll().contains(reiziger)) throw new Error("Reiziger niet juist verwijderd");
+    }
+
+    private static void testProductDAO(OVChipkaartDAO ovdao, ProductDAO pdao) {
+        System.out.println("\n[Test] Save");
+        Product p = new Product(7, "TestProduct", "TestBeschrijving", 80.00);
+        System.out.println("aantal voor save: " + pdao.findAll().size());
+        pdao.save(p);
+        System.out.println("aantal na save: " + pdao.findAll().size());
+
+        System.out.println("\n[Test] Update");
+        System.out.println("Voor de update: " + p);
+        p.setNaam("Update op de naam");
+        p.setBeschrijving("Update op de beschrijving");
+        p.setPrijs(10.50);
+        pdao.update(p);
+        System.out.println("Na de update: " + pdao.findById(p.getProductNummer()));
+
+
+        System.out.println("\n[Test] Koppeling");
+        System.out.println("Toevoegen van product aan chipkaart");
+        OVChipkaart ov = ovdao.findById(46392);
+        System.out.println("voor: " + ov);
+        ov.addProduct(pdao.findById(1));
+        ov.addProduct(p);
+        ovdao.update(ov);
+        System.out.println("na: " + ovdao.findById(ov.getKaartNummer()).getProducten());
+        ov.removeProduct(pdao.findById(1));
+        ov.removeProduct(p);
+        ovdao.update(ov);
+        System.out.println("terugzetten: " + ovdao.findById(ov.getKaartNummer()));
+
+
+        System.out.println("\n[Test] Delete");
+        System.out.println("aantal voor delete: " + pdao.findAll().size());
+        pdao.delete(p);
+
+        System.out.println("aantal na delete: " + pdao.findAll().size());
+
     }
 }

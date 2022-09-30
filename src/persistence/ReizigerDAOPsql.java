@@ -29,14 +29,14 @@ public class ReizigerDAOPsql implements ReizigerDAO{
         Reiziger reiziger = new Reiziger(rs.getInt(1), rs.getString(2), rs.getString(3),
                 rs.getString(4), rs.getDate(5));
         reiziger.setAdres(adao.findByReiziger(reiziger));
-        if (reiziger.getAdres() != null) reiziger.getAdres().setReiziger_id(reiziger);
+        if (reiziger.getAdres() != null) reiziger.getAdres().setReizigerId(reiziger);
         reiziger.setOVChipkaarten(ovdao.findByReiziger(reiziger));
         return reiziger;
     }
 
     private boolean containsId(List<OVChipkaart> kaarten, OVChipkaart kaart) {
         for (OVChipkaart ovChipkaart : kaarten) {
-            if (ovChipkaart.getKaart_nummer() == kaart.getKaart_nummer()) {
+            if (ovChipkaart.getKaartNummer() == kaart.getKaartNummer()) {
                 return true;
             }
         }
@@ -137,6 +137,7 @@ public class ReizigerDAOPsql implements ReizigerDAO{
                     adao.update(adresReiziger);
                 }
             }
+
             List<OVChipkaart> kaartenDB = ovdao.findByReiziger(reiziger);
             List<OVChipkaart> kaartenReiziger = reiziger.getOvChipkaarten();
 
@@ -179,13 +180,16 @@ public class ReizigerDAOPsql implements ReizigerDAO{
             """);
             pst.setInt(1, reiziger.getId());
             boolean adres = true;
+
             for (OVChipkaart kaart : reiziger.getOvChipkaarten()) {
                 if (!ovdao.delete(kaart)) return false;
             }
+
             Adres adresReiziger = reiziger.getAdres();
             if (adresReiziger != null) {
                 adres = adao.delete(adresReiziger);
             }
+
             return pst.executeUpdate() > 0 && adres;
         } catch (SQLException e) {
             e.printStackTrace();

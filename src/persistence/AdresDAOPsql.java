@@ -61,7 +61,7 @@ public class AdresDAOPsql implements AdresDAO{
             pst.setString(3, adres.getHuisnummer());
             pst.setString(4, adres.getStraat());
             pst.setString(5, adres.getWoonplaats());
-            pst.setInt(6, adres.getReiziger_id().getId());
+            pst.setInt(6, adres.getReizigerId().getId());
 
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -86,7 +86,7 @@ public class AdresDAOPsql implements AdresDAO{
             pst.setString(2, adres.getHuisnummer());
             pst.setString(3, adres.getStraat());
             pst.setString(4, adres.getWoonplaats());
-            pst.setInt(5, adres.getReiziger_id().getId());
+            pst.setInt(5, adres.getReizigerId().getId());
             pst.setInt(6, adres.getId());
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -131,7 +131,7 @@ public class AdresDAOPsql implements AdresDAO{
             rs = pst.executeQuery();
             if (rs.next()) {
                 Adres a = createAdres(rs);
-                a.setReiziger_id(rdao.findById(rs.getInt(6)));
+                a.setReizigerId(rdao.findById(rs.getInt(6)));
                 return a;
             }
         } catch (SQLException e) {
@@ -181,7 +181,9 @@ public class AdresDAOPsql implements AdresDAO{
 """);
             List<Adres> adresList = new ArrayList<>();
             while (rs.next()) {
-                adresList.add(createAdres(rs));
+                Adres a = createAdres(rs);
+                a.setReizigerId(rdao.findById(rs.getInt(6)));
+                adresList.add(a);
             }
             return adresList;
         } catch (SQLException e) {

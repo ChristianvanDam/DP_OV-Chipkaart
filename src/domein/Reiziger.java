@@ -96,10 +96,9 @@ public class Reiziger {
         if (OVChipkaart.getReiziger() != this) OVChipkaart.setReiziger(this);
     }
 
-    public boolean equals(Reiziger reiziger) {
-        return reiziger.getId() == this.id;
+    public void removeOvChipkaart(OVChipkaart ovChipkaart) {
+        this.OVChipkaarten.remove(ovChipkaart);
     }
-
 
     @Override
     public String toString() {

@@ -6,17 +6,17 @@ public class Adres {
     private String huisnummer;
     private String straat;
     private String woonplaats;
-    private Reiziger reiziger_id;
+    private Reiziger reizigerId;
 
     public Adres() {}
 
-    public Adres(int id, String postcode, String huisnummer, String straat, String woonplaats, Reiziger reiziger_id) {
+    public Adres(int id, String postcode, String huisnummer, String straat, String woonplaats, Reiziger reizigerId) {
         this.id = id;
         this.postcode = postcode;
         this.huisnummer = huisnummer;
         this.straat = straat;
         this.woonplaats = woonplaats;
-        this.reiziger_id = reiziger_id;
+        this.reizigerId = reizigerId;
     }
 
     public int getId() {
@@ -59,12 +59,12 @@ public class Adres {
         this.woonplaats = woonplaats;
     }
 
-    public Reiziger getReiziger_id() {
-        return this.reiziger_id;
+    public Reiziger getReizigerId() {
+        return this.reizigerId;
     }
 
-    public void setReiziger_id(Reiziger reiziger_id) {
-        this.reiziger_id = reiziger_id;
+    public void setReizigerId(Reiziger reizigerId) {
+        this.reizigerId = reizigerId;
     }
 
     @Override
